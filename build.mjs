@@ -67,8 +67,8 @@ if (!iconCount) {
   process.exit(1);
 }
 
-// Service Worker（离线缓存，逻辑与 24 点同款，非阻塞）
-const sw = `const CACHE = 'pz-v1';
+// Service Worker（离线缓存：文档网络优先，静态资源缓存优先）
+const sw = `const CACHE = 'pz-v2';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -94,19 +94,16 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const req = e.request;
   if (isDoc(req)) {
+    // 文档：网络优先。在线时刷新总能拿到最新版并更新缓存；
+    // 只有真正离线（网络失败）才回退到缓存，保证断网也能玩。
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
-      const hit = await cache.match(req);
-      if (hit) {
-        fetch(req).then((res) => { if (res && res.ok) cache.put(req, res.clone()); }).catch(() => {});
-        return hit;
-      }
       try {
         const res = await fetch(req);
         if (res && res.ok) cache.put(req, res.clone());
         return res;
       } catch (err) {
-        const fb = (await cache.match('./index.html')) || (await cache.match('./'));
+        const fb = (await cache.match(req)) || (await cache.match('./index.html')) || (await cache.match('./'));
         if (fb) return fb;
         throw err;
       }

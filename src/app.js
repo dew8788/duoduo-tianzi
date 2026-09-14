@@ -595,9 +595,43 @@
   function registerSW() {
     if (!('serviceWorker' in navigator)) return;
     if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
-    navigator.serviceWorker.register('sw.js').catch(function (e) {
+
+    // 若之前有「新版本」提示按钮，清掉
+    var existing = $('#update-bar');
+    if (existing) existing.remove();
+
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      // 有新版本（SW 更新）时弹出「有新版本，点击刷新」
+      reg.addEventListener('updatefound', function () {
+        var nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', function () {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBar();
+          }
+        });
+      });
+    }).catch(function (e) {
       if (window.console && console.warn) console.warn('[PZ] SW 注册失败：', e && e.message);
     });
+  }
+
+  // 蓝色小横幅：「新版本已就绪」，点击立即刷新拿最新
+  function showUpdateBar() {
+    if ($('#update-bar')) return;
+    var bar = el('button', 'update-bar');
+    bar.id = 'update-bar';
+    bar.innerHTML = '有新版本 ▲ 点击刷新';
+    bar.addEventListener('click', function () {
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+      }
+      location.reload();
+    });
+    document.body.appendChild(bar);
+    setTimeout(function () {
+      if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
+    }, 8000);
   }
 
   function init() {

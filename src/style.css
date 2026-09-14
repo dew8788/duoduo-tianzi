@@ -630,6 +630,28 @@ body {
 
 /* ========================= 提示条 / 撒花 =============================== */
 
+.update-bar {
+  position: fixed;
+  left: 50%;
+  top: calc(env(safe-area-inset-top) + 4vmin);
+  transform: translateX(-50%);
+  appearance: none;
+  border: 0;
+  background: var(--blue);
+  color: #fff;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: clamp(13px, 2.2vmin, 18px);
+  letter-spacing: .04em;
+  padding: clamp(10px, 1.9vmin, 16px) clamp(20px, 3.6vmin, 40px);
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(107, 168, 208, .4);
+  z-index: 70;
+  animation: updateIn .3s ease;
+}
+@keyframes updateIn { from { transform: translateX(-50%) translateY(-12px); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }
+
 .toast {
   position: fixed;
   left: 50%;
