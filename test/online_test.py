@@ -18,6 +18,11 @@ def main():
         pg = ctx.new_page()
         errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)))
+        pg.goto(URL, wait_until="domcontentloaded")
+        pg.wait_for_function("()=>!!window.__PZ__", timeout=15000)
+        # 清除既有 SW 与缓存，确保读到最新发布（不是上一版 SW 的缓存优先）
+        pg.evaluate("""async ()=>{ const ks=await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k)));
+          const regs=await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r=>r.unregister())); }""")
         pg.goto(URL, wait_until="networkidle")
         pg.wait_for_function("()=>!!window.__PZ__", timeout=15000)
         ok(pg.title().startswith("朵朵填字"), "标题含'朵朵填字'，实际 title=" + pg.title())
@@ -41,14 +46,20 @@ def main():
         ok(pg.evaluate("()=>window.__PZ__.state().screen")=="home", "回首页成功")
 
         # Service Worker 状态
+        # Service Worker 状态
         sw_state = pg.evaluate("""() => new Promise(res=>{
           if(!('serviceWorker' in navigator)){res('no-sw');return;}
-          const t=setTimeout(()=>res('timeout'),15000);
+          const t=setTimeout(()=>res('timeout'),20000);
           navigator.serviceWorker.ready.then(reg=>{clearTimeout(t);
             res(reg.active? 'active-'+reg.active.state : 'no-active');});
         })""")
         ok("active" in sw_state, "SW 已激活 (" + sw_state + ")")
-        entries = pg.evaluate("""async ()=>{ const ks=await caches.keys(); if(!ks.length)return 0; const c=await caches.open(ks[0]); return (await c.keys()).length; }""")
+        # 预热是后台异步的，轮询等缓存条目稳定到 >=4（最多 15s）
+        entries = 0
+        for _ in range(30):
+            entries = pg.evaluate("""async ()=>{ const ks=await caches.keys(); if(!ks.length)return 0; const c=await caches.open(ks[0]); return (await c.keys()).length; }""")
+            if entries >= 4: break
+            pg.wait_for_timeout(500)
         ok(entries>=4, f"缓存已预热({entries}个资源)")
 
         ok(not errs, "无页面JS错误" + ("："+" | ".join(errs) if errs else ""))
