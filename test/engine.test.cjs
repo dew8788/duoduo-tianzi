@@ -62,7 +62,7 @@ const crossTier = data.find(t => t.kind === 'cross');
 ok(!!crossTier, '存在十字档');
 if (crossTier) {
   const t = data.indexOf(crossTier);
-  ok(crossTier.items.length >= 4, '十字档至少4盘');
+  ok(crossTier.items.length === 50, '十字档恰好 50 盘，实际 ' + crossTier.items.length);
   for (let i = 0; i < crossTier.items.length; i++) {
     const it = crossTier.items[i];
     ok(it.rows > 0 && it.cols > 0, '盘尺寸');
@@ -71,15 +71,14 @@ if (crossTier) {
     ok(bank && bank.tiles.length >= 1, '盘' + i + '有候选字');
     // 空白格是否全部可填对
     const blanks = it.cells.filter(c => !c.pre);
+    ok(blanks.length >= 1, '盘' + i + '至少一个待填空格');
     const filled = {};
     blanks.forEach(b => { filled[b.r + ':' + b.c] = b.ch; });
     ok(E.crossDone(t, i, filled), '盘' + i + '填全体可判为成功');
     // 单一格判定
-    if (blanks.length) {
-      const b0 = blanks[0];
-      ok(E.isCrossCorrect(t, i, b0.r, b0.c, b0.ch), '盘' + i + '单格判定正确');
-      ok(!E.isCrossCorrect(t, i, b0.r, b0.c, '的'), '盘' + i + '单格判错位');
-    }
+    const b0 = blanks[0];
+    ok(E.isCrossCorrect(t, i, b0.r, b0.c, b0.ch), '盘' + i + '单格判定正确');
+    ok(!E.isCrossCorrect(t, i, b0.r, b0.c, '的'), '盘' + i + '单格判错位');
   }
 }
 

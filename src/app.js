@@ -344,9 +344,8 @@
         return '<span class="aw-cell' + (S.slots.indexOf(i) >= 0 ? ' done' : '') + '">' + esc(c) + '</span>';
       }).join('');
     }
-    var celebrator = S.isCross ? '🧩' : (S.data.em || '🌟');
     openModal(
-      partyHTML(celebrator) +
+      partyHTML('') +
       '<h2>' + pick(['太棒了！', '拼对啦！', '你真聪明！', '好厉害！']) + '</h2>' +
       '<div class="answer-word">' + answerCells + '</div>' +
       (S.data.hint ? '<p class="a-hint">' + esc(S.data.hint) + '</p>' : '') +
@@ -449,27 +448,49 @@
 
   /* ============================ 庆祝动画 ============================ */
 
+  var GIRL_SVG =
+    '<svg class="girl" viewBox="0 0 120 152" aria-hidden="true">' +
+    '<circle cx="25" cy="50" r="14" fill="#5a463c"/>' +
+    '<circle cx="95" cy="50" r="14" fill="#5a463c"/>' +
+    '<rect x="47" y="104" width="10" height="26" rx="5" fill="#fbd6c4"/>' +
+    '<rect x="63" y="104" width="10" height="26" rx="5" fill="#fbd6c4"/>' +
+    '<rect x="41" y="126" width="19" height="11" rx="5.5" fill="#f0692e"/>' +
+    '<rect x="60" y="126" width="19" height="11" rx="5.5" fill="#f0692e"/>' +
+    '<path d="M60 58 L92 110 Q60 121 28 110 Z" fill="#f0692e"/>' +
+    '<path d="M60 58 L92 110 Q76 115 60 115 Z" fill="#d8511c" opacity=".32"/>' +
+    '<path class="arm-l" d="M46 70 L23 38" stroke="#fbd6c4" stroke-width="12" stroke-linecap="round" fill="none"/>' +
+    '<path class="arm-r" d="M74 70 L97 38" stroke="#fbd6c4" stroke-width="12" stroke-linecap="round" fill="none"/>' +
+    '<circle cx="60" cy="40" r="27" fill="#fbd6c4"/>' +
+    '<path d="M33 38 Q33 6 60 6 Q87 6 87 38 Q80 21 60 21 Q40 21 33 38 Z" fill="#5a463c"/>' +
+    '<circle cx="48" cy="13" r="6" fill="#ffc93c"/>' +
+    '<circle cx="72" cy="13" r="6" fill="#ffc93c"/>' +
+    '<circle cx="50" cy="42" r="3.6" fill="#3a2b26"/>' +
+    '<circle cx="70" cy="42" r="3.6" fill="#3a2b26"/>' +
+    '<circle cx="42" cy="50" r="4.6" fill="#f79b9b" opacity=".72"/>' +
+    '<circle cx="78" cy="50" r="4.6" fill="#f79b9b" opacity=".72"/>' +
+    '<path d="M54 51 Q60 58 66 51" stroke="#c8664f" stroke-width="2.6" fill="none" stroke-linecap="round"/>' +
+    '</svg>';
+
   var HEART_SVG = '<svg viewBox="0 0 24 24"><path d="M12 21S3.6 15.4 3.6 9.7A4.9 4.9 0 0 1 12 6.1a4.9 4.9 0 0 1 8.4 3.6C20.4 15.4 12 21 12 21z" fill="currentColor"/></svg>';
   var STAR_SVG = '<svg viewBox="0 0 24 24"><path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3.1-5.8 3.1 1.1-6.5L2.6 9.4l6.5-.9z" fill="currentColor"/></svg>';
   var SPARKS = [
     { x: -64, y: -80, d: 0.00, c: '#f0692e', h: true },
-    { x: 60, y: -96, d: 0.24, c: '#4cc97c', h: false },
-    { x: -44, y: -114, d: 0.46, c: '#ffc93c', h: true },
-    { x: 48, y: -64, d: 0.68, c: '#3fb4e6', h: false },
-    { x: -18, y: -126, d: 0.90, c: '#ff8fb1', h: true },
+    { x: 60, y: -94, d: 0.24, c: '#4cc97c', h: false },
+    { x: -42, y: -112, d: 0.46, c: '#ffc93c', h: true },
+    { x: 48, y: -62, d: 0.68, c: '#3fb4e6', h: false },
+    { x: -16, y: -124, d: 0.90, c: '#ff8fb1', h: true },
     { x: 22, y: -44, d: 1.12, c: '#e0a324', h: false }
   ];
 
-  function partyHTML(emoji) {
+  /** 小女孩举手欢呼 + 飘爱心/星星 */
+  function partyHTML(cheer) {
     var sparks = SPARKS.map(function (sp) {
       return '<span class="spark" style="--tx:' + sp.x + 'px;--ty:' + sp.y + 'px;--d:' + sp.d +
         's;color:' + sp.c + '">' + (sp.h ? HEART_SVG : STAR_SVG) + '</span>';
     }).join('');
     return '<div class="party">' +
-      '<div class="cheer">真棒！</div>' +
-      sparks +
-      '<div class="party-animal">' + esc(emoji) + '</div>' +
-      '</div>';
+      (cheer ? '<div class="cheer">' + esc(cheer) + '</div>' : '') +
+      sparks + GIRL_SVG + '</div>';
   }
 
   /* ============================ 提示条 / 撒花 ============================ */

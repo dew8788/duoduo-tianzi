@@ -551,7 +551,7 @@ body {
 }
 .answer-word .aw-cell.done { background: var(--green); color: #fff; box-shadow: 0 3px 0 var(--green-edge); }
 
-/* ========================= 庆祝动画（小动物） ========================= */
+/* ========================= 庆祝动画（小女孩） ========================= */
 
 .party {
   position: relative;
@@ -561,25 +561,38 @@ body {
   margin: 2vmin auto 2.5vmin;
 }
 
-.party-animal {
-  font-size: clamp(88px, 22vmin, 170px);
-  line-height: 1;
+.party .girl {
+  width: clamp(104px, 21vmin, 172px);
+  height: auto;
+  display: block;
   transform-origin: 50% 100%;
-  animation: animalJump .68s cubic-bezier(.42, 0, .52, 1) infinite;
-  text-shadow: 0 8px 18px rgba(70, 83, 107, .15);
+  animation: girlJump .68s cubic-bezier(.42, 0, .52, 1) infinite;
 }
-@keyframes animalJump {
+@keyframes girlJump {
   0%, 100% { transform: translateY(0) scaleY(1) scaleX(1); }
-  22%      { transform: translateY(-14%) scaleY(1.05) scaleX(.96); }
-  48%      { transform: translateY(0) scaleY(.94) scaleX(1.04); }
+  22%      { transform: translateY(-13%) scaleY(1.05) scaleX(.97); }
+  48%      { transform: translateY(0) scaleY(.95) scaleX(1.04); }
   62%      { transform: translateY(-5%) scaleY(1.02) scaleX(.99); }
   80%      { transform: translateY(0) scaleY(1) scaleX(1); }
 }
 
+.party .girl .arm-l {
+  transform-box: fill-box;
+  transform-origin: 100% 100%;
+  animation: armWaveL .68s ease-in-out infinite;
+}
+.party .girl .arm-r {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+  animation: armWaveR .68s ease-in-out infinite;
+}
+@keyframes armWaveL { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-19deg); } }
+@keyframes armWaveR { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(19deg); } }
+
 .spark {
   position: absolute;
   left: 50%;
-  top: 48%;
+  top: 52%;
   width: clamp(12px, 2.4vmin, 20px);
   height: clamp(12px, 2.4vmin, 20px);
   color: var(--orange);
@@ -598,7 +611,7 @@ body {
 .party .cheer {
   position: absolute;
   left: 50%;
-  top: -12%;
+  top: -14%;
   transform: translateX(-50%);
   font-size: clamp(20px, 4vmin, 34px);
   font-weight: 900;
@@ -647,7 +660,7 @@ body {
 @keyframes fall { to { transform: translateY(112vh) rotate(720deg); opacity: .15; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .party-animal, .spark, .party .cheer { animation: none !important; opacity: 1; }
+  .party .girl, .party .girl .arm-l, .party .girl .arm-r, .spark, .party .cheer { animation: none !important; opacity: 1; }
 }
 
 /* ============================ 横屏矮屏适配 ============================= */
