@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 组装 src/puzzles.js。
-  档0 四字好词 / 档1 成语挑战：来自 puzzles_data.json
-  档2 十字成语（crossword）：两种块状形状
+  档0 四字好词 / 档1 成语挑战：来自 puzzles_data.json + puzzles_extra.json(合并)
+  档2 十字成语：两种块状形状（真实可靠）
     A 单十字（2词）：一横一竖交叉
-    B H形/双横一竖（3词）：竖成语穿两条横成语，形成"工"字块
-交叉字一律待填（crossword 核心）；每条成语预填第一个非共享字作锚点。
+    B H形/双横一竖（3词）：竖成语穿两条横成语，形成"工"字大块
+交叉字一律待填（crossword 灵魂）；每条成语预填第一个非共享字作锚点。
 run: python tools/build_final.py
 """
 import json, os, random
@@ -13,12 +13,24 @@ from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, '..', 'src', 'puzzles_data.json')
+EXTRA = os.path.join(HERE, '..', 'src', 'puzzles_extra.json')
 OUT = os.path.join(HERE, '..', 'src', 'puzzles.js')
 
 
 def load():
+    data = {}
     with open(DATA, encoding='utf-8') as f:
-        return json.load(f)
+        data = json.load(f)
+    if os.path.exists(EXTRA):
+        with open(EXTRA, encoding='utf-8') as f:
+            ex = json.load(f)
+        seen = set(it['w'] for it in data['haoci'] + data['duizhan'])
+        for k in ('haoci', 'duizhan'):
+            for it in ex.get(k, []):
+                if it['w'] not in seen:
+                    data[k].append(it)
+                    seen.add(it['w'])
+    return data
 
 
 def build_pymap(data):
@@ -37,6 +49,10 @@ def clean_words(data):
 def clean_words_nodup(data):
     ws = clean_words(data)
     return [w for w in ws if len(set(w)) == 4]
+
+
+def cell(r, c, ch, pymap, pre):
+    return {"r": r, "c": c, "ch": ch, "py": pymap.get(ch, ""), "pre": pre}
 
 
 def norm_cells(cells, cols):
@@ -58,11 +74,7 @@ def norm_cells(cells, cols):
     return {"cells": cells, "rows": rows, "cols": cols}
 
 
-def cell(r, c, ch, pymap, pre):
-    return {"r": r, "c": c, "ch": ch, "py": pymap.get(ch, ""), "pre": pre}
-
-
-# ---------- 形状 A：单十字 ----------
+# ---------- 形状 A：单十字（2词） ----------
 def shape_plus(a, b, pymap):
     sh = next((c for c in a if c in b), None)
     if not sh:
@@ -81,34 +93,28 @@ def shape_plus(a, b, pymap):
     return norm_cells(cells, 4)
 
 
-# ---------- 形状 B：H形（双横一竖） ----------
+# ---------- 形状 B：H形（双横一竖，3词） ----------
 def shape_h(a, c, b, pymap):
-    """竖 b 穿两条横 a(上)、c(下)。返回 cells 或 None。
-    要求：a[ia]==b[ka]，c[ia]==b[kc]，kc>ka（横 c 在横 a 下方）。"""
     shared_ab = set(a) & set(b)
     shared_cb = set(c) & set(b)
     if not shared_ab or not shared_cb:
         return None
-    for ia in (1, 2, 0, 3):  # 优先中间列，交叉点居中
+    for ia in (1, 2, 0, 3):
         if a[ia] not in shared_ab or c[ia] not in shared_cb:
             continue
-        # b 中与 a[ia] 相等的字、与 c[ia] 相等的字
         ka = b.index(a[ia])
         kc = b.index(c[ia])
         if kc <= ka:
-            continue  # 保证横 c 在下方
+            continue
         cells = []
-        # 横 a 在第 0 行
         anchor_a = next((k for k in range(4) if k != ia), 0)
         for k, ch in enumerate(a):
             cells.append(cell(0, k, ch, pymap, k == anchor_a))
-        # 竖 b 在 col ia，第 k 字在 (k - ka, ia)
         anchor_b = next((k for k in range(4) if k != ka and k != kc), 0)
         for k, ch in enumerate(b):
             if k == ka or k == kc:
                 continue
             cells.append(cell(k - ka, ia, ch, pymap, k == anchor_b))
-        # 横 c 在第 (kc-ka) 行
         c_row = kc - ka
         anchor_c = next((k for k in range(4) if k != ia), 0)
         for k, ch in enumerate(c):
@@ -119,52 +125,52 @@ def shape_h(a, c, b, pymap):
 
 # ---------- 生成 ----------
 def build_cross(data, pymap):
-    ws = clean_words(data)          # 含叠字，横成语用
-    ws_nodup = clean_words_nodup(data)  # 竖成语用（无叠字避免歧义）
+    ws = clean_words(data)
+    ws_nodup = clean_words_nodup(data)
 
-    # 收集 H 形组合（3词）：竖 b 无叠字，穿两条横 a(上)、c(下)，gap>=2
-    # 按竖成语 b 分组，轮流取，保证竖成语多样
+    # H 形组合（3词：竖 b 穿两横 a上,c下），按竖成语分组轮取
     h_groups = defaultdict(list)
     for b in ws_nodup:
         for a in ws:
             for c in ws:
                 if a == b or c == b or a == c:
                     continue
-                sa, sb, sc = set(a), set(b), set(c)
-                if not (sa & sb) or not (sc & sb):
+                if not (set(a) & set(b)) or not (set(c) & set(b)):
                     continue
                 for ia in (1, 2, 0, 3):
-                    if a[ia] not in sb or c[ia] not in sb:
+                    if a[ia] not in b or c[ia] not in b:
                         continue
                     ka = b.index(a[ia]); kc = b.index(c[ia])
                     if kc - ka >= 2:
                         h_groups[b].append((a, b, c, ia, kc - ka))
                         break
-    # 每个竖成语内部打乱
     random.seed(42)
     for b in h_groups:
         random.shuffle(h_groups[b])
-    # 竖成语按"能组的组合数"排序，轮流取
     b_keys = sorted(h_groups.keys(), key=lambda b: -len(h_groups[b]))
     h_combos = []
+    seen_h = set()
     round_i = 0
-    while len(h_combos) < 35:
+    target_h = 35
+    while len(h_combos) < target_h and round_i < 300:
         progress = False
         for b in b_keys:
             grp = h_groups[b]
             k = round_i % len(grp)
             a, bb, c, ia, gap = grp[k]
-            if (a, bb, c) in {(x[0], x[1], x[2]) for x in h_combos}:
+            key = (a, bb, c)
+            if key in seen_h:
                 continue
+            seen_h.add(key)
             h_combos.append((a, bb, c, ia, gap))
             progress = True
-            if len(h_combos) >= 35:
+            if len(h_combos) >= target_h:
                 break
         round_i += 1
         if not progress:
             break
 
-    # 单十字组合（无叠字，交叉居中）
+    # 单十字组合（交叉居中）
     plus_combos = []
     for a in ws_nodup:
         for b in ws_nodup:
@@ -173,13 +179,14 @@ def build_cross(data, pymap):
             sh = next((c for c in a if c in b), None)
             if sh and a.index(sh) in (1, 2):
                 plus_combos.append((a, b))
+    random.seed(7)
     random.shuffle(plus_combos)
 
     items = []
     hi = pi = 0
+    # H 形大块 35 + 单十字 15
     while len(items) < 50:
-        # 前 30 个用 H 形（大块），后 20 个用单十字
-        if len(items) < 30 and hi < len(h_combos):
+        if hi < len(h_combos) and len(items) < target_h:
             a, b, c, ia, gap = h_combos[hi]
             hi += 1
             lay = shape_h(a, c, b, pymap)

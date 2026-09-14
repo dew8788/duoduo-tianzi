@@ -220,6 +220,9 @@ body {
   justify-content: center;
   gap: clamp(8px, 2vmin, 20px);
   padding: 1vmin 3vmin;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 #clue {
