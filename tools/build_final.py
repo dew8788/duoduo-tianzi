@@ -2,17 +2,17 @@
 """
 组装 src/puzzles.js。
   档0 四字好词 / 档1 成语挑战：来自 puzzles_data.json
-  档2 十字成语：多条成语纵横交叉，交叉字待填（crossword 的核心）
-三种网格形状轮换：
-  A 单十字（2词）   B 梳子（1横+2竖，3词）   C 双横阶梯（2横+1竖，3词）
-填空规则：每条成语首字预填作锚点，其余（含交叉字）待填，空格显示拼音。
+  档2 十字成语（crossword）：两种块状形状
+    A 单十字（2词）：一横一竖交叉
+    B H形/双横一竖（3词）：竖成语穿两条横成语，形成"工"字块
+交叉字一律待填（crossword 核心）；每条成语预填第一个非共享字作锚点。
 run: python tools/build_final.py
 """
-import json, os
+import json, os, random
+from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, '..', 'src', 'puzzles_data.json')
-DICT = os.path.join(HERE, '..', 'docs', 'extracted_entries.json')
 OUT = os.path.join(HERE, '..', 'src', 'puzzles.js')
 
 
@@ -21,200 +21,188 @@ def load():
         return json.load(f)
 
 
-def load_dict():
-    if not os.path.exists(DICT):
-        return []
-    with open(DICT, encoding='utf-8') as f:
-        return json.load(f)
-
-
-def build_pymap(data, dict_entries):
+def build_pymap(data):
     m = {}
     for it in data['haoci'] + data['duizhan']:
         for i, ch in enumerate(it['w']):
             m.setdefault(ch, it['py'][i])
-    for e in dict_entries:
-        for i, ch in enumerate(e['w']):
-            if i < len(e['py']):
-                m.setdefault(ch, e['py'][i])
     return m
 
 
-# ---------- 找共享字成语对（复用） ----------
-def shared_char(a, b):
-    for c in a:
-        if c in b:
-            return c
-    return None
-
-
-def all_words(data, dict_entries):
-    # 只用人工核对过的干净词，不用词典 OCR 脏词
+def clean_words(data):
     ws = [it['w'] for it in data['haoci']] + [it['w'] for it in data['duizhan']]
     return list(dict.fromkeys(w for w in ws if len(w) == 4))
 
 
-# ============ 三种形状的布局器 ============
-# 每个盘返回 cells = [{r,c,ch,py,pre}]，pre=True 表示预填锚点
-
-def shape_plus(a, b, pymap):
-    """A: 单十字。横 a 在第0行；竖 b 穿过 a 的共享字。
-    锚点 = 每条成语的第一个"非共享"字；交叉字(共享字)永远待填。"""
-    sh = shared_char(a, b)
-    if not sh:
-        return None
-    ia, ib = a.index(sh), b.index(sh)
-    cells = []
-    # 横 a 的锚点：第一个非共享字
-    anchor_a = next((c for c in range(len(a)) if c != ia), 0)
-    for c, ch in enumerate(a):
-        cells.append({"r": 0, "c": c, "ch": ch, "py": pymap.get(ch, ""),
-                      "pre": (c == anchor_a)})
-    # 竖 b 的锚点：第一个非共享字
-    anchor_b = next((i for i in range(len(b)) if i != ib), 0)
-    s = -ib
-    for i, ch in enumerate(b):
-        if i == ib:
-            continue
-        cells.append({"r": s + i, "c": ia, "ch": ch, "py": pymap.get(ch, ""),
-                      "pre": (i == anchor_b)})
-    return norm_cells(cells, len(a))
-
-
-def shape_comb(a, b1, b2, pymap):
-    """B: 梳子。横 a 在中间行；两条竖 b1、b2 分别从 a 的两个不同字向下伸。"""
-    sh1, sh2 = shared_char(a, b1), shared_char(a, b2)
-    if not sh1 or not sh2 or sh1 == sh2:
-        return None
-    ia1, ia2 = a.index(sh1), a.index(sh2)
-    ib1, ib2 = b1.index(sh1), b2.index(sh2)
-    cells = []
-    # 横 a 放在第 1 行（留出上方的空间）
-    for c, ch in enumerate(a):
-        cells.append({"r": 1, "c": c, "ch": ch, "py": pymap.get(ch, ""), "pre": (c == 0)})
-    # 竖 b1（向下，共享字对齐到 r=1）
-    s1 = 1 - ib1
-    for i, ch in enumerate(b1):
-        if i == ib1:
-            continue
-        cells.append({"r": s1 + i, "c": ia1, "ch": ch, "py": pymap.get(ch, ""),
-                      "pre": (i == 0)})
-    # 竖 b2
-    s2 = 1 - ib2
-    for i, ch in enumerate(b2):
-        if i == ib2:
-            continue
-        cells.append({"r": s2 + i, "c": ia2, "ch": ch, "py": pymap.get(ch, ""),
-                      "pre": (i == 0)})
-    return norm_cells(cells, len(a))
-
-
-def shape_stair(a, b, c, pymap):
-    """C: 双横阶梯。横 a 在第0行，横 b 在第2行；竖 c 穿过 a 与 b 各共享一字。"""
-    sh_a = shared_char(a, c)
-    sh_b = shared_char(b, c)
-    if not sh_a or not sh_b or sh_a == sh_b:
-        return None
-    ia = a.index(sh_a); ic_a = c.index(sh_a)
-    ib = b.index(sh_b); ic_b = c.index(sh_b)
-    cells = []
-    # 横 a（第0行）
-    for ci, ch in enumerate(a):
-        cells.append({"r": 0, "c": ci, "ch": ch, "py": pymap.get(ch, ""), "pre": (ci == 0)})
-    # 横 b（第2行）
-    for ci, ch in enumerate(b):
-        cells.append({"r": 2, "c": ci, "ch": ch, "py": pymap.get(ch, ""), "pre": (ci == 0)})
-    # 竖 c：穿过 a 的 ia 列 和 b 的 ib 列——两条横错位，竖 c 必须同列
-    # 这里约束 a/b 的共享字列必须相同，否则做不成一根竖线；先放共享列=ia
-    if ia != ib:
-        return None
-    # 竖 c 从上方伸到下方，覆盖 a(0,ia) 与 b(2,ia)
-    # c 中 sh_a 与 sh_b 是不同字，位置 ic_a, ic_b；要求 |ic_b-ic_a|==2 对齐到 r0 与 r2
-    if abs(ic_b - ic_a) != 2:
-        return None
-    s = 0 - ic_a
-    for i, ch in enumerate(c):
-        if i == ic_a or i == ic_b:
-            continue
-        cells.append({"r": s + i, "c": ia, "ch": ch, "py": pymap.get(ch, ""),
-                      "pre": (i == 0)})
-    return norm_cells(cells, max(len(a), len(b)))
+def clean_words_nodup(data):
+    ws = clean_words(data)
+    return [w for w in ws if len(set(w)) == 4]
 
 
 def norm_cells(cells, cols):
-    # 平移到非负坐标，去重
-    minr = min(c["r"] for c in cells)
+    minr = min(c['r'] for c in cells)
     if minr < 0:
         for c in cells:
-            c["r"] -= minr
+            c['r'] -= minr
     seen = {}
     for c in cells:
-        key = (c["r"], c["c"])
+        key = (c['r'], c['c'])
         if key in seen:
-            # 已有（交叉格），保留（pre 取 or）
-            seen[key]["pre"] = seen[key]["pre"] or c["pre"]
+            seen[key]['pre'] = seen[key]['pre'] or c['pre']
             continue
         seen[key] = c
     cells = list(seen.values())
-    rows = max(c["r"] for c in cells) + 1
-    maxc = max(c["c"] for c in cells) + 1
+    rows = max(c['r'] for c in cells) + 1
+    maxc = max(c['c'] for c in cells) + 1
     cols = max(cols, maxc)
     return {"cells": cells, "rows": rows, "cols": cols}
 
 
-# ============ 生成 50 盘：单十字，共享字居中，交叉字待填 ============
-def make_cross_boards(data, dict_entries, pymap):
-    ws = all_words(data, dict_entries)
-    from collections import defaultdict
-    groups = defaultdict(list)   # shared -> [(a,b)]
-    for a in ws:
-        for b in ws:
-            if a == b:
+def cell(r, c, ch, pymap, pre):
+    return {"r": r, "c": c, "ch": ch, "py": pymap.get(ch, ""), "pre": pre}
+
+
+# ---------- 形状 A：单十字 ----------
+def shape_plus(a, b, pymap):
+    sh = next((c for c in a if c in b), None)
+    if not sh:
+        return None
+    ia, ib = a.index(sh), b.index(sh)
+    cells = []
+    anchor_a = next((c for c in range(4) if c != ia), 0)
+    for c, ch in enumerate(a):
+        cells.append(cell(0, c, ch, pymap, c == anchor_a))
+    anchor_b = next((i for i in range(4) if i != ib), 0)
+    s = -ib
+    for i, ch in enumerate(b):
+        if i == ib:
+            continue
+        cells.append(cell(s + i, ia, ch, pymap, i == anchor_b))
+    return norm_cells(cells, 4)
+
+
+# ---------- 形状 B：H形（双横一竖） ----------
+def shape_h(a, c, b, pymap):
+    """竖 b 穿两条横 a(上)、c(下)。返回 cells 或 None。
+    要求：a[ia]==b[ka]，c[ia]==b[kc]，kc>ka（横 c 在横 a 下方）。"""
+    shared_ab = set(a) & set(b)
+    shared_cb = set(c) & set(b)
+    if not shared_ab or not shared_cb:
+        return None
+    for ia in (1, 2, 0, 3):  # 优先中间列，交叉点居中
+        if a[ia] not in shared_ab or c[ia] not in shared_cb:
+            continue
+        # b 中与 a[ia] 相等的字、与 c[ia] 相等的字
+        ka = b.index(a[ia])
+        kc = b.index(c[ia])
+        if kc <= ka:
+            continue  # 保证横 c 在下方
+        cells = []
+        # 横 a 在第 0 行
+        anchor_a = next((k for k in range(4) if k != ia), 0)
+        for k, ch in enumerate(a):
+            cells.append(cell(0, k, ch, pymap, k == anchor_a))
+        # 竖 b 在 col ia，第 k 字在 (k - ka, ia)
+        anchor_b = next((k for k in range(4) if k != ka and k != kc), 0)
+        for k, ch in enumerate(b):
+            if k == ka or k == kc:
                 continue
-            sh = shared_char(a, b)
-            if not sh:
-                continue
-            ia = a.index(sh)
-            ib = b.index(sh)
-            # 只要求"横成语"的共享字在中间（第2或第3字），交叉点居中成十字；
-            # 竖成语只要穿过横成语即可（ib 不限）。
-            if ia not in (1, 2):
-                continue
-            groups[sh].append((a, b))
-    chars = sorted(groups.keys(), key=lambda c: -len(groups[c]))
-    items = []
-    seen = set()
+            cells.append(cell(k - ka, ia, ch, pymap, k == anchor_b))
+        # 横 c 在第 (kc-ka) 行
+        c_row = kc - ka
+        anchor_c = next((k for k in range(4) if k != ia), 0)
+        for k, ch in enumerate(c):
+            cells.append(cell(c_row, k, ch, pymap, k == anchor_c))
+        return norm_cells(cells, 4)
+    return None
+
+
+# ---------- 生成 ----------
+def build_cross(data, pymap):
+    ws = clean_words(data)          # 含叠字，横成语用
+    ws_nodup = clean_words_nodup(data)  # 竖成语用（无叠字避免歧义）
+
+    # 收集 H 形组合（3词）：竖 b 无叠字，穿两条横 a(上)、c(下)，gap>=2
+    # 按竖成语 b 分组，轮流取，保证竖成语多样
+    h_groups = defaultdict(list)
+    for b in ws_nodup:
+        for a in ws:
+            for c in ws:
+                if a == b or c == b or a == c:
+                    continue
+                sa, sb, sc = set(a), set(b), set(c)
+                if not (sa & sb) or not (sc & sb):
+                    continue
+                for ia in (1, 2, 0, 3):
+                    if a[ia] not in sb or c[ia] not in sb:
+                        continue
+                    ka = b.index(a[ia]); kc = b.index(c[ia])
+                    if kc - ka >= 2:
+                        h_groups[b].append((a, b, c, ia, kc - ka))
+                        break
+    # 每个竖成语内部打乱
+    random.seed(42)
+    for b in h_groups:
+        random.shuffle(h_groups[b])
+    # 竖成语按"能组的组合数"排序，轮流取
+    b_keys = sorted(h_groups.keys(), key=lambda b: -len(h_groups[b]))
+    h_combos = []
     round_i = 0
-    need = 50
-    while len(items) < need:
+    while len(h_combos) < 35:
         progress = False
-        for sh in chars:
-            grp = groups[sh]
-            if not grp:
-                continue
+        for b in b_keys:
+            grp = h_groups[b]
             k = round_i % len(grp)
-            a, b = grp[k]
-            key = tuple(sorted((a, b)))
-            if key in seen:
+            a, bb, c, ia, gap = grp[k]
+            if (a, bb, c) in {(x[0], x[1], x[2]) for x in h_combos}:
                 continue
-            seen.add(key)
-            lay = shape_plus(a, b, pymap)
-            if not lay:
-                continue
-            items.append({
-                "name": "十·" + str(len(items) + 1),
-                "words": [a, b],
-                "rows": lay["rows"],
-                "cols": lay["cols"],
-                "cells": lay["cells"],
-                "hint": "横竖都是成语，交叉的字两边都要用",
-            })
+            h_combos.append((a, bb, c, ia, gap))
             progress = True
-            if len(items) >= need:
+            if len(h_combos) >= 35:
                 break
         round_i += 1
         if not progress:
             break
+
+    # 单十字组合（无叠字，交叉居中）
+    plus_combos = []
+    for a in ws_nodup:
+        for b in ws_nodup:
+            if a == b:
+                continue
+            sh = next((c for c in a if c in b), None)
+            if sh and a.index(sh) in (1, 2):
+                plus_combos.append((a, b))
+    random.shuffle(plus_combos)
+
+    items = []
+    hi = pi = 0
+    while len(items) < 50:
+        # 前 30 个用 H 形（大块），后 20 个用单十字
+        if len(items) < 30 and hi < len(h_combos):
+            a, b, c, ia, gap = h_combos[hi]
+            hi += 1
+            lay = shape_h(a, c, b, pymap)
+            if not lay:
+                continue
+            words = [a, b, c]
+        elif pi < len(plus_combos):
+            a, b = plus_combos[pi]
+            pi += 1
+            lay = shape_plus(a, b, pymap)
+            if not lay:
+                continue
+            words = [a, b]
+        else:
+            break
+        items.append({
+            "name": "十·" + str(len(items) + 1),
+            "words": words,
+            "rows": lay["rows"],
+            "cols": lay["cols"],
+            "cells": lay["cells"],
+            "hint": "横竖都是成语，交叉的字两边都要用",
+        })
     return items
 
 
@@ -224,10 +212,8 @@ def norm(items, em):
 
 def main():
     data = load()
-    dict_entries = load_dict()
-    pymap = build_pymap(data, dict_entries)
-    cross_items = make_cross_boards(data, dict_entries, pymap)
-
+    pymap = build_pymap(data)
+    cross_items = build_cross(data, pymap)
     out = [
         {"name": "四字好词", "distract": 2, "items": norm(data['haoci'], '🧡')},
         {"name": "成语大挑战", "distract": 3, "items": norm(data['duizhan'], '🧿')},
