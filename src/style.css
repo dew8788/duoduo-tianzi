@@ -293,6 +293,56 @@ body {
   to { transform: scale(1); opacity: 1; }
 }
 .cell.blank.wrong { animation: shake .34s ease; box-shadow: 0 clamp(4px, .9vmin, 9px) 0 #d98763, inset 0 0 0 3px #e0724a; }
+
+/* ============================ 十字成语 网格 ============================ */
+
+.cross-grid {
+  display: grid;
+  gap: clamp(6px, 1.2vmin, 12px);
+  --xcell: clamp(52px, 13vmin, 104px);
+  justify-content: center;
+}
+
+.xcell {
+  width: var(--xcell);
+  height: var(--xcell);
+  border-radius: clamp(10px, 1.8vmin, 18px);
+  font-family: var(--font-round);
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+}
+.xcell.void { background: transparent; box-shadow: none; }
+.xcell.pre {
+  background: var(--mint);
+  color: #fff;
+  box-shadow: 0 clamp(3px, .6vmin, 6px) 0 var(--mint-edge), 0 8px 14px rgba(70, 83, 107, .1);
+  font-size: clamp(24px, 6vmin, 52px);
+}
+.xcell.sel {
+  background: var(--green);
+  color: #fff;
+  box-shadow: 0 clamp(4px, .9vmin, 9px) 0 var(--green-edge), 0 0 0 5px rgba(76, 201, 124, .24), 0 12px 22px rgba(76, 201, 124, .3);
+  transform: translateY(-4px);
+}
+.xcell.has {
+  background: var(--green);
+  color: #fff;
+  box-shadow: 0 clamp(4px, .9vmin, 9px) 0 var(--green-edge), 0 8px 14px rgba(76, 201, 124, .24);
+  font-size: clamp(24px, 3.4vmin, 48px);
+}
+.xcell .py {
+  font-family: inherit;
+  font-size: clamp(11px, 1.8vmin, 20px);
+  font-weight: 800;
+  color: var(--mint-bright);
+  letter-spacing: .02em;
+}
+.xcell.wrong { animation: shake .34s ease; box-shadow: 0 clamp(4px, .9vmin, 9px) 0 #d98763, inset 0 0 0 3px #e0724a; }
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   20% { transform: translateX(-1vmin) rotate(-2deg); }

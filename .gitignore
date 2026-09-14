@@ -3,3 +3,11 @@ test/screenshots/
 *.log
 test_log.txt
 *二维码.png
+# 词典 OCR 提取结果（含版权内容，不提交）
+docs/
+# OCR 提取临时脚本（含本机绝对路径/token 读取）
+tools/ocr_dict.py
+tools/ocr_dict2.py
+tools/ocr_dict_seg.py
+tools/run_dict.py
+tools/parse_dict.py

@@ -120,12 +120,20 @@
     var it = E.getItem(tier, item);
     if (!it) return;
     S.tier = tier; S.item = item; S.data = it;
-    S.chars = it.w.split('');
-    S.slots = it.b.slice();
+    S.isCross = (E.data()[tier].kind === 'cross');
+    S.chars = (it.w || '').split('');
+    S.slots = it.b ? it.b.slice() : [];
     S.filled = {};
-    var bank = E.buildBank(tier, item, (Date.now() & 0xffffffff));
+    S.selSlot = null;      // 普通模式:槽位下标；十字模式:"r:c"字符串
+    var bank = null;
+    if (S.isCross) {
+      bank = E.buildCrossBank(tier, item, (Date.now() & 0xffffffff));
+      S.cells = it.cells || [];
+    } else {
+      bank = E.buildBank(tier, item, (Date.now() & 0xffffffff));
+      S.cells = [];
+    }
     S.bank = bank ? bank.tiles : [];
-    S.selSlot = null;
     S.done = false;
     store.lastTier = tier; store.lastItem = item;
     saveStore();
@@ -144,6 +152,7 @@
   }
 
   function renderBoard() {
+    if (S.isCross) { renderCrossBoard(); return; }
     var box = $('#board-cells');
     box.innerHTML = '';
     S.chars.forEach(function (ch, idx) {
@@ -171,6 +180,44 @@
     });
   }
 
+  function renderCrossBoard() {
+    var box = $('#board-cells');
+    box.innerHTML = '';
+    var rows = S.data.rows, cols = S.data.cols;
+    var grid = el('div', 'cross-grid');
+    grid.style.gridTemplateColumns = 'repeat(' + cols + ', var(--xcell))';
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var found = null;
+        for (var k = 0; k < S.cells.length; k++) if (S.cells[k].r === r && S.cells[k].c === c) { found = S.cells[k]; break; }
+        var cellEl;
+        if (!found) {
+          cellEl = el('div', 'xcell void');
+        } else if (found.pre) {
+          cellEl = el('div', 'xcell pre');
+          cellEl.textContent = found.ch;
+        } else {
+          cellEl = el('button', 'xcell' + (S.selSlot === (r + ':' + c) ? ' sel' : ''));
+          cellEl.type = 'button';
+          cellEl.dataset.r = String(r);
+          cellEl.dataset.c = String(c);
+          var f = S.filled[r + ':' + c];
+          if (f) {
+            cellEl.classList.add('has');
+            cellEl.textContent = f;
+          } else {
+            cellEl.innerHTML = '<span class="py">' + esc(found.py || '') + '</span>';
+          }
+          (function (rr, cc) {
+            cellEl.addEventListener('click', function () { onBlankTap(rr + ':' + cc); });
+          })(r, c);
+        }
+        grid.appendChild(cellEl);
+      }
+    }
+    box.appendChild(grid);
+  }
+
   function renderBank() {
     var box = $('#bank');
     box.innerHTML = '';
@@ -189,6 +236,7 @@
     if (!c) return;
     var it = S.data;
     if (it.hint) c.innerHTML = '💡 ' + esc(it.hint);
+    else if (S.isCross) c.innerHTML = '横排竖排都是成语，交叉的字共用';
     else {
       var shown = S.chars.map(function (ch, i) {
         return S.slots.indexOf(i) >= 0 ? '<span class="clue-pyb">' + esc(S.data.py[i] || '') + '</span>' : '<span class="clue-ch">' + esc(ch) + '</span>';
@@ -213,15 +261,15 @@
 
   function onPreTap(idx) {
     if (S.done) return;
-    // 已显示的字：点一下只给音效示意
     Sfx.pick();
-    toast(S.chars[idx] + ' 是 " ' + (S.data.py[idx] || '') + '"');
+    if (S.isCross) { toast('这个字已给出'); return; }
+    toast(S.chars[idx] + ' 是 "' + (S.data.py[idx] || '') + '"');
   }
 
   function onBlankTap(idx) {
     if (S.done) return;
     if (!S.filled[idx]) { S.selSlot = idx; Sfx.pick(); renderBoard(); renderBank(); return; }
-    // 已填格的格子：点它取消（退回候选）
+    // 已填格：点它取消
     delete S.filled[idx];
     S.selSlot = idx;
     Sfx.pick();
@@ -237,7 +285,13 @@
       return;
     }
     if (S.filled[idx]) return;
-    var correct = E.isCorrect(S.tier, S.item, idx, tile.char);
+    var correct;
+    if (S.isCross) {
+      var cp = idx.split(':');
+      correct = E.isCrossCorrect(S.tier, S.item, Number(cp[0]), Number(cp[1]), tile.char);
+    } else {
+      correct = E.isCorrect(S.tier, S.item, idx, tile.char);
+    }
     if (correct) {
       S.filled[idx] = tile.char;
       S.selSlot = null;
@@ -251,6 +305,14 @@
   }
 
   function wrongFlash(idx) {
+    if (S.isCross) {
+      var sel = $('.xcell[data-k="x"].sel');
+      if (sel) {
+        sel.classList.add('wrong');
+        setTimeout(function () { sel.classList.remove('wrong'); }, 430);
+      }
+      return;
+    }
     var cell = $('.cell.blank[data-idx="' + idx + '"]');
     if (!cell) return;
     cell.classList.add('wrong');
@@ -258,6 +320,10 @@
   }
 
   function checkWin() {
+    if (S.isCross) {
+      if (E.crossDone(S.tier, S.item, S.filled)) onWin();
+      return;
+    }
     var all = S.slots.every(function (i) { return S.filled[i]; });
     if (all) onWin();
   }
@@ -268,12 +334,21 @@
     saveStore();
     Sfx.win(); confetti();
     updateProgress();
-    openModal(
-      partyHTML(S.data.em) +
-      '<h2>' + pick(['太棒了！', '拼对啦！', '你真聪明！', '好厉害！']) + '</h2>' +
-      '<div class="answer-word">' + S.chars.map(function (c, i) {
+    var answerCells;
+    if (S.isCross) {
+      answerCells = S.cells.map(function (c) {
+        return '<span class="aw-cell' + (c.pre ? ' pre' : ' done') + '">' + esc(c.ch) + '</span>';
+      }).join('');
+    } else {
+      answerCells = S.chars.map(function (c, i) {
         return '<span class="aw-cell' + (S.slots.indexOf(i) >= 0 ? ' done' : '') + '">' + esc(c) + '</span>';
-      }).join('') + '</div>' +
+      }).join('');
+    }
+    var celebrator = S.isCross ? '🧩' : (S.data.em || '🌟');
+    openModal(
+      partyHTML(celebrator) +
+      '<h2>' + pick(['太棒了！', '拼对啦！', '你真聪明！', '好厉害！']) + '</h2>' +
+      '<div class="answer-word">' + answerCells + '</div>' +
       (S.data.hint ? '<p class="a-hint">' + esc(S.data.hint) + '</p>' : '') +
       '<div class="row">' +
       '<button class="btn btn-grey" data-action="home">回首页</button>' +
@@ -476,7 +551,9 @@
       state: function () {
         return {
           screen: S.screen, tier: S.tier, item: S.item, done: S.done,
+          isCross: S.isCross,
           chars: S.chars.slice(), slots: S.slots.slice(),
+          cells: S.cells,
           filled: Object.assign({}, S.filled), selSlot: S.selSlot,
           bank: S.bank.map(function (t) { return { id: t.id, char: t.char, answer: t.answer }; })
         };

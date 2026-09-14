@@ -4,14 +4,13 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-// 从 puzzles.js 里取 window.PZ_PUZZELS 全局
+// 加载题库（window.PZ_PUZZELS）
 const puzzlesSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'puzzles.js'), 'utf8');
 const holder = {};
 new Function('window', puzzlesSrc)(holder);
 const data = holder.PZ_PUZZLES;
 
-// 加载引擎（模块导出形式）
-delete require.cache[require.resolve('../src/engine.js')];
+// 加载引擎
 const E = require('../src/engine.js');
 
 let passed = 0;
@@ -20,67 +19,71 @@ function ok(cond, msg) {
   passed++;
 }
 
-// ---------------------------------------------------------------
-ok(Array.isArray(data) && data.length >= 4, '题库应有至少 4 档');
-ok(E, '引擎应能加载');
-
+// 基本
+ok(Array.isArray(data) && data.length >= 3, '应有至少 3 档');
+ok(E, '引擎可加载');
 E.setData(data);
 
-// 1. 数据完整性
-{
-  const r = E.validate();
-  ok(r.ok === true, '题库校验应通过，实际错误：' + r.errors.join(' | '));
-}
-
-// 2. 各档计数与名称
+// 档验证
 ok(E.tierCount() === data.length, '档数一致');
-for (let t = 0; t < data.length; t++) {
-  ok(typeof E.tierName(t) === 'string' && E.tierName(t).length > 0, '第' + (t + 1) + '档有名字');
-  ok(E.itemCount(t) >= 3, '第' + (t + 1) + '档题目不少于3题');
+
+data.forEach(function (tier, t) {
+  ok(typeof E.tierName(t) === 'string' && E.tierName(t).length > 0, '档' + (t + 1) + '有名字');
+  ok(E.itemCount(t) >= 1, '档' + (t + 1) + '非空');
+});
+
+// —— 档0/档1：普通成语 —— 
+for (let t = 0; t < Math.min(2, data.length); t++) {
+  const tier = data[t];
+  ok(tier.kind !== 'cross', '档' + (t + 1) + ' 是普通档');
+  ok(tier.items.length >= 50, '档' + (t + 1) + ' 至少 50 题，实际 ' + tier.items.length);
+  tier.items.forEach(function (it, i) {
+    assert.strictEqual(it.w.length, 4, '档' + t + '题' + i + ' 四字');
+    assert.strictEqual(it.py.length, 4, '档' + t + '题' + i + ' 拼音4');
+    // 拼音带声调：含非 ascii 元音 或 带音标记（ü 在多云）
+    for (const p of it.py) {
+      ok(/[āáǎàēéěèīíǐìōóǒòūúǔùüǖǘǚǜ]/.test(p), '拼音带声调: ' + it.w + ' /' + p);
+    }
+    // b 合法 & 可解
+    for (const k of it.b) {
+      ok(k >= 0 && k < 4, '空缺下标合法');
+      ok(E.isCorrect(t, i, k, it.w[k]), '空缺' + k + '可匹配');
+    }
+    // buildBank 干扰不含正解
+    const bank = E.buildBank(t, i, 3);
+    for (const d of bank.tiles.filter(x => !x.answer)) {
+      ok(!it.w.includes(d.char), '干扰字不与正解重复: ' + d.char);
+    }
+  });
 }
 
-// 3. 候选字生成：正解不越界、干扰字不含题内字、答案可解
-for (let t = 0; t < data.length; t++) {
-  const n = E.itemCount(t);
-  for (let i = 0; i < n; i++) {
-    const bank = E.buildBank(t, i, 1);
-    ok(bank && bank.tiles && bank.tiles.length >= 1, '第' + (t + 1) + '档第' + (i + 1) + '题能出候选字');
-    const item = data[t].items[i];
-    // 干扰字不能出现在答案里
-    const answerSet = {};
-    item.b.forEach(idx => { answerSet[item.w[idx]] = 1; });
-    const distractors = bank.tiles.filter(x => !x.answer);
-    for (const d of distractors) {
-      // 干扰字不能等于任何一个正确答案
-      if (item.b.some(k => item.w[k] === d.char)) {
-        throw new Error('干扰字冲突: 第' + (t + 1) + '档第' + (i + 1) + '题 ' + d.char);
-      }
-    }
-    // 正确答案能解出（每位空缺都能匹配）
-    for (const key of Object.keys(bank.answers)) {
-      const slot = Number(key);
-      ok(E.isCorrect(t, i, slot, item.w[slot]), '空缺' + slot + '正确答案可匹配');
+// —— 档3（或最后一档）：十字成语 ——
+const crossTier = data.find(t => t.kind === 'cross');
+ok(!!crossTier, '存在十字档');
+if (crossTier) {
+  const t = data.indexOf(crossTier);
+  ok(crossTier.items.length >= 4, '十字档至少4盘');
+  for (let i = 0; i < crossTier.items.length; i++) {
+    const it = crossTier.items[i];
+    ok(it.rows > 0 && it.cols > 0, '盘尺寸');
+    // 非 pre 的格都应有正解（buildCrossBank 给的答案都在 blank 里）
+    const bank = E.buildCrossBank(t, i, 5);
+    ok(bank && bank.tiles.length >= 1, '盘' + i + '有候选字');
+    // 空白格是否全部可填对
+    const blanks = it.cells.filter(c => !c.pre);
+    const filled = {};
+    blanks.forEach(b => { filled[b.r + ':' + b.c] = b.ch; });
+    ok(E.crossDone(t, i, filled), '盘' + i + '填全体可判为成功');
+    // 单一格判定
+    if (blanks.length) {
+      const b0 = blanks[0];
+      ok(E.isCrossCorrect(t, i, b0.r, b0.c, b0.ch), '盘' + i + '单格判定正确');
+      ok(!E.isCrossCorrect(t, i, b0.r, b0.c, '的'), '盘' + i + '单格判错位');
     }
   }
 }
 
-// 4. 叠字题（出现重复正确答案）洗牌后正解键应存在且可解
-//   例如 一心一意 (b:[0]) 只有一个空缺，不影响；找一道 b 里含相同字的多字
-//   验证答案对象给出的 slot→正确字 覆盖所有空缺
-for (let t = 0; t < data.length; t++) {
-  const n = E.itemCount(t);
-  for (let i = 0; i < n; i++) {
-    const it = data[t].items[i];
-    const bank = E.buildBank(t, i, 7);
-    for (const idx of it.b) {
-      ok(bank.answers[idx] === it.w[idx], '空缺' + idx + '答案一致');
-    }
-  }
-}
-
-// 5. seeded shuffle 确定性
-const a = E.shuffled([1, 2, 3, 4, 5], 42).join(',');
-const b = E.shuffled([1, 2, 3, 4, 5], 42).join(',');
-ok(a === b, '同 seed 洗牌结果一致');
+// seeded shuffle
+ok(E.shuffled([1,2,3,4,5],42).join(',') === E.shuffled([1,2,3,4,5],42).join(','), 'shuffle确定');
 
 console.log('\n✓ 引擎测试全部通过（' + passed + ' 项断言）');

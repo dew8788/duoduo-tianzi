@@ -151,6 +151,58 @@
     return String(resolve) === String(char);
   }
 
+  /* ============================ 十字成语 (crossword) ============================ */
+
+  function crossCells(t, i) {
+    var tier = DATA && DATA[t];
+    var it = tier && tier.items[i];
+    if (!tier || tier.kind !== 'cross' || !it || !it.cells) return null;
+    return it.cells;
+  }
+
+  function buildCrossBank(t, i, seed) {
+    var cells = crossCells(t, i);
+    if (!cells) return null;
+    var distract = (DATA[t].distract | 0) || 0;
+    var blank = cells.filter(function (c) { return !c.pre; });
+    var tiles = blank.map(function (c, k) {
+      return { id: 'x-' + t + '-' + i + '-' + k, char: c.ch, slot: c.r + ':' + c.c, answer: true };
+    });
+    var used = {};
+    cells.forEach(function (c) { used[c.ch] = 1; });
+    var pool = INTERFERENCE_POOL.slice();
+    var distpool = [];
+    for (var p = 0; p < pool.length && distpool.length < 80; p++) if (!used[pool[p]]) distpool.push(pool[p]);
+    var i2 = 0;
+    while (tiles.filter(function (x) { return !x.answer; }).length < distract && i2 < distpool.length) {
+      var ch = distpool[i2];
+      tiles.push({ id: 'xd-' + i2, char: ch, answer: false });
+      i2++;
+    }
+    var order = shuffled(arrayFromIndex(tiles.length), seed);
+    return { tiles: order.map(function (k) { return tiles[k]; }), blanks: blank };
+  }
+
+  function crossDone(t, i, filled) {
+    var cells = crossCells(t, i);
+    if (!cells) return false;
+    for (var k = 0; k < cells.length; k++) {
+      var c = cells[k];
+      if (c.pre) continue;
+      if (filled[c.r + ':' + c.c] !== c.ch) return false;
+    }
+    return true;
+  }
+
+  function isCrossCorrect(t, i, r, c, char) {
+    var cells = crossCells(t, i);
+    if (!cells) return false;
+    for (var k = 0; k < cells.length; k++) {
+      if (cells[k].r === r && cells[k].c === c) return String(cells[k].ch) === String(char);
+    }
+    return false;
+  }
+
   return {
     validate: validate,
     setData: setData,
@@ -161,6 +213,10 @@
     getItem: getItem,
     buildBank: buildBank,
     isCorrect: isCorrect,
+    crossCells: crossCells,
+    buildCrossBank: buildCrossBank,
+    crossDone: crossDone,
+    isCrossCorrect: isCrossCorrect,
     TOTAL_TIERS: 6,
     shuffled: shuffled
   };
