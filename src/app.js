@@ -220,18 +220,12 @@
 
   function onBlankTap(idx) {
     if (S.done) return;
-    if (!S.filled[idx]) { S.selSlot = idx; Sfx.pick(); resetBankLook(); markSelected(); return; }
+    if (!S.filled[idx]) { S.selSlot = idx; Sfx.pick(); renderBoard(); renderBank(); return; }
     // 已填格的格子：点它取消（退回候选）
     delete S.filled[idx];
     S.selSlot = idx;
     Sfx.pick();
-    render();
-  }
-
-  function markSelected() {
-    $$('.char-btn').forEach(function (b) {
-      b.classList.toggle('avail', true);
-    });
+    renderBoard(); renderBank();
   }
 
   function onCharTap(tile) {
