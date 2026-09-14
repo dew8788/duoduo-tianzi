@@ -1,0 +1,4 @@
+dist/
+test/screenshots/
+*.log
+test_log.txt

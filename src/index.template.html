@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="朵朵填字乐园">
+<meta name="theme-color" content="#ffffff">
+<meta name="format-detection" content="telephone=no,email=no,address=no">
+<meta name="description" content="朵朵填字乐园：看图拼字、填成语，孩子认识更多汉字的趣味小游戏。纯本地运行、离线可玩。">
+<title>朵朵填字乐园</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+/*{{CSS}}*/
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============================ 首页 ============================ -->
+  <section class="screen active" id="screen-home">
+    <div class="home-wrap">
+      <div class="logo">
+        <span class="ch c1">朵</span>
+        <span class="ch c2">朵</span>
+        <span class="ch c3">的</span>
+        <span class="ch c4">填字</span>
+        <span class="ch c5 orange">乐园</span>
+      </div>
+      <div class="home-sub">看图 · 拼字 · 学习汉字</div>
+      <div class="home-actions">
+        <button class="btn btn-green" id="btn-main-start">开始拼字</button>
+        <button class="btn btn-orange" id="btn-main-tiers">挑选关卡</button>
+      </div>
+      <div class="home-foot" id="home-progress"></div>
+    </div>
+  </section>
+
+  <!-- ============================ 选档 ============================ -->
+  <section class="screen" id="screen-chapters">
+    <header class="topbar">
+      <button class="icon-btn arrow" data-back="home">←</button>
+      <div class="title-block center">
+        <div class="t1 orange">挑选关卡</div>
+        <div class="t2">按难度 · 越往下越难</div>
+      </div>
+    </header>
+    <div class="scroll"><div class="grid-chapters" id="tier-grid"></div></div>
+  </section>
+
+  <!-- ============================ 选关 ============================ -->
+  <section class="screen" id="screen-levels">
+    <header class="topbar">
+      <button class="icon-btn arrow" id="btn-levels-back">←</button>
+      <div class="title-block">
+        <div class="t1" id="levels-title"></div>
+        <div class="t2" id="levels-sub"></div>
+      </div>
+    </header>
+    <div class="scroll"><div class="grid-levels" id="level-grid"></div></div>
+  </section>
+
+  <!-- ============================ 拼字 ============================ -->
+  <section class="screen" id="screen-game">
+    <header class="topbar">
+      <button class="icon-btn arrow" id="btn-game-back">←</button>
+      <div class="title-block">
+        <div class="t1" id="game-title"></div>
+        <div class="t2" id="game-sub"></div>
+      </div>
+      <button class="icon-btn blue" id="btn-reload" title="重来">↻</button>
+    </header>
+
+    <main class="play-area">
+      <div id="clue"></div>
+      <div class="board-cells" id="board-cells"></div>
+      <div class="bank-label">选一个下面的字，填进空格：</div>
+      <div class="bank" id="bank"></div>
+    </main>
+
+    <footer class="pad">
+      <button class="tool-btn" id="btn-prev">上一题</button>
+      <button class="tool-btn" id="btn-next">下一题</button>
+    </footer>
+  </section>
+
+</div>
+
+<div class="modal-root" id="modal-root"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/*{{LEVELS}}*/
+</script>
+<script>
+/*{{ENGINE}}*/
+</script>
+<script>
+/*{{APP}}*/
+</script>
+</body>
+</html>
