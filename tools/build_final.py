@@ -213,8 +213,22 @@ def build_cross(data, pymap):
     return items
 
 
-def norm(items, em):
-    return [{"w": it['w'], "py": it['py'], "b": [1], "em": em, "hint": it['hint']} for it in items]
+def norm(items, em, blanks_per=1):
+    out = []
+    for n, it in enumerate(items):
+        # 空位选择：轮换取不同位置，避免都空第2格
+        if blanks_per == 1:
+            pos = [1, 2, 0, 3, 2, 3, 1, 0, 3, 0][n % 10]
+            inds = [pos]
+        else:
+            # 更难点：空 2 个不同位置（轮换，避免重复）
+            base = [0, 1, 2, 3][n % 4]
+            inds = [base, (base + 2) % 4]
+            inds = sorted(set(inds))
+        out_item = {"w": it['w'], "py": it['py'], "b": inds, "em": '🧡' if len(inds) == 1 else '🧿',
+                    "hint": it['hint']}
+        out.append(out_item)
+    return out
 
 
 def main():
@@ -222,8 +236,8 @@ def main():
     pymap = build_pymap(data)
     cross_items = build_cross(data, pymap)
     out = [
-        {"name": "四字好词", "distract": 2, "items": norm(data['haoci'], '🧡')},
-        {"name": "成语大挑战", "distract": 3, "items": norm(data['duizhan'], '🧿')},
+        {"name": "四字好词", "distract": 2, "items": norm(data['haoci'], '🧡', 1)},
+        {"name": "成语大挑战", "distract": 3, "items": norm(data['duizhan'], '🧿', 2)},
         {"name": "十字成语", "kind": "cross", "distract": 2, "items": cross_items},
     ]
     with open(OUT, 'w', encoding='utf-8') as f:

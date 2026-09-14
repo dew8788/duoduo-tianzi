@@ -42,19 +42,21 @@ def main():
             ok(s["screen"] == "game", "点开始进入游戏")
             ok(s["tier"] == 0 and s["item"] == 0, "进入第1档第1题")
             ok("".join(s["chars"]) == "一心一意", "第一题是'一心一意'")
-            ok(sorted(s["slots"]) == [1], "空缺[1]")
-            ok(len(s["bank"]) >= 1, "有候选字")
-            ok("心" in [t["char"] for t in s["bank"]], "候选含正确字'心'")
+            slots0 = sorted(s["slots"])
+            ok(len(slots0) >= 1, "有空缺")
+            idx0 = slots0[0]
+            correct0 = s["chars"][idx0]
+            ok(correct0 in [t["char"] for t in s["bank"]], "候选含正确字")
 
-            blank = page.locator('.cell.blank[data-idx="1"]')
+            blank = page.locator(f'.cell.blank[data-idx="{idx0}"]')
             ok(blank.count() == 1, "有 1 个空白格")
             py_txt = blank.inner_text()
-            ok(py_txt.strip() != "" and "心" not in py_txt, "空白格显示拼音提示(非答案)")
+            ok(py_txt.strip() != "" and correct0 not in py_txt, "空白格显示拼音提示(非答案)")
 
             blank.click()
-            page.locator(".char-btn", has_text="心").first.click()
+            page.locator(".char-btn", has_text=correct0).first.click()
             s2 = state(page)
-            ok(s2["filled"].get("1") == "心", "空格填入'心'")
+            ok(s2["filled"].get(str(idx0)) == correct0, "空格填入正确字")
             ok(s2["done"] is True, "拼对触发 done")
             ok(page.locator(".modal-root.show").count() == 1, "胜利弹窗出现")
             page.click("button[data-action='home']")
@@ -68,19 +70,21 @@ def main():
             s = state(page)
             ok(s["tier"] == 0 and s["item"] == 1, "进入档0第2题")
             ok("".join(s["chars"]) == "三心二意", "第2题是'三心二意'")
-            # 空 [1]=心
-            blank2 = page.locator('.cell.blank[data-idx="1"]')
+            slots1 = sorted(s["slots"])
+            idx1_ = slots1[0]
+            correct1 = s["chars"][idx1_]
+            blank2 = page.locator(f'.cell.blank[data-idx="{idx1_}"]')
             blank2.click()
-            wrong = [t["char"] for t in s["bank"] if t["char"] != "心"]
+            wrong = [t["char"] for t in s["bank"] if t["char"] != correct1]
             if wrong:
                 page.locator(".char-btn", has_text=wrong[0]).first.click()
                 page.wait_for_timeout(600)
                 s = state(page)
-                ok(s["filled"].get("1") is None or s["filled"].get("1") != "心",
-                   "填错不会写入'心'")
-            page.locator(".char-btn", has_text="心").first.click()
+                ok(s["filled"].get(str(idx1_)) is None or s["filled"].get(str(idx1_)) != correct1,
+                   "填错不会写入正确字")
+            page.locator(".char-btn", has_text=correct1).first.click()
             s3 = state(page)
-            ok(s3["filled"].get("1") == "心", "第二次填对'心'")
+            ok(s3["filled"].get(str(idx1_)) == correct1, "第二次填对")
             ok(s3["done"] is True, "第2题成功")
             # 关掉胜利弹窗回首页
             page.click("button[data-action='home']")
